@@ -5,16 +5,25 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import paths from '#utils/paths.js';
 
+async function ensureXianyuWebhookConfigFile(port) {
+  const targetPath = path.join(paths.root, 'data', 'server_bots', String(port), 'xianyu_webhook.yaml');
+  if (fs.existsSync(targetPath)) return { ok: true, targetPath, created: false };
+
+  const templatePath = path.join(paths.root, 'core', 'xianyu-Core', 'default_config', 'xianyu_webhook.yaml');
+  try {
+    await fsp.mkdir(path.dirname(targetPath), { recursive: true });
+    await fsp.copyFile(templatePath, targetPath);
+    return { ok: true, targetPath, created: true };
+  } catch {
+    return { ok: false, targetPath, created: false };
+  }
+}
+
 function normArray(v) {
   if (!Array.isArray(v)) return [];
   return v
     .map(x => String(x ?? '').trim())
     .filter(Boolean);
-}
-
-function getXianyuWebhookConfig() {
-  const c = cfg?.xianyu_webhook;
-  return c && typeof c === 'object' ? c : {};
 }
 
 function pickSecretFromReq(req) {
@@ -86,25 +95,28 @@ export default {
     // xianyu-Core 自己负责首次生成配置文件（不依赖根目录 default_config 模板）
     const port = cfg?.port ?? cfg?._port;
     if (!port) return;
-
-    const targetPath = path.join(paths.root, 'data', 'server_bots', String(port), 'xianyu_webhook.yaml');
-    if (fs.existsSync(targetPath)) return;
-
-    const templatePath = path.join(paths.root, 'core', 'xianyu-Core', 'default_config', 'xianyu_webhook.yaml');
-    try {
-      await fsp.mkdir(path.dirname(targetPath), { recursive: true });
-      await fsp.copyFile(templatePath, targetPath);
-    } catch (e) {
-      // 不阻断启动：如果复制失败，后续读取 cfg.xianyu_webhook 时会给出更明确的错误
-      // 这里不能依赖 Bot（init 无注入），用 console 也会污染输出，因此保持静默
-    }
+    await ensureXianyuWebhookConfigFile(port);
   },
   routes: [
     {
       method: 'POST',
       path: '/webhook/xianyu',
       handler: HttpResponse.asyncHandler(async (req, res, Bot) => {
-        const conf = getXianyuWebhookConfig();
+        const port = cfg?.port ?? cfg?._port;
+        if (!port) return HttpResponse.error(res, new Error('端口未初始化，无法解析配置路径'), 503, 'xianyu.webhook');
+
+        // 确保配置文件存在（不依赖根 default_config）
+        const ensured = await ensureXianyuWebhookConfigFile(port);
+        if (!ensured.ok) {
+          return HttpResponse.error(res, new Error(`配置文件生成失败: ${ensured.targetPath}`), 503, 'xianyu.webhook');
+        }
+
+        const cm = global.ConfigManager?.get?.('xianyu_webhook');
+        if (!cm || typeof cm.read !== 'function') {
+          return HttpResponse.error(res, new Error('ConfigManager 未初始化或 xianyu_webhook 未加载'), 503, 'xianyu.webhook');
+        }
+
+        const conf = await cm.read(true).catch(() => ({}));
         if (conf.enabled !== true) {
           return HttpResponse.forbidden(res, 'xianyu_webhook 未启用');
         }
