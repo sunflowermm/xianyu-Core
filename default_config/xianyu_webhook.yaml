@@ -3,9 +3,6 @@
 
 enabled: false
 
-# 当前实现的路由固定为 /webhook/xianyu
-path: "/webhook/xianyu"
-
 # 建议务必配置密钥，并在调用方请求时携带：
 # - header: X-Xianyu-Secret: <secret>
 # - 或 query: ?secret=<secret>
