@@ -1,0 +1,22 @@
+# 闲鱼 webhook 推送配置（xianyu-Core 内置模板）
+# 首次启动时由 xianyu-Core 自动写入到：data/server_bots/{port}/xianyu_webhook.yaml
+
+enabled: false
+
+# 当前实现的路由固定为 /webhook/xianyu
+path: "/webhook/xianyu"
+
+# 建议务必配置密钥，并在调用方请求时携带：
+# - header: X-Xianyu-Secret: <secret>
+# - 或 query: ?secret=<secret>
+secret: ""
+
+# 可选：指定发送所使用的机器人 UIN；留空则自动选用一个已连接的机器人
+bot_id: ""
+
+# 群聊推送目标（群号数组）
+groups: []
+
+# 私聊推送目标（QQ号数组）
+privates: []
+
