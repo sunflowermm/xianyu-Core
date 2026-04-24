@@ -91,12 +91,6 @@ export default {
   name: 'xianyu-webhook',
   dsc: '闲鱼 webhook 接收与转发（OneBotv11）',
   priority: 120,
-  init: async () => {
-    // xianyu-Core 自己负责首次生成配置文件（不依赖根目录 default_config 模板）
-    const port = cfg?.port ?? cfg?._port;
-    if (!port) return;
-    await ensureXianyuWebhookConfigFile(port);
-  },
   routes: [
     {
       method: 'POST',
@@ -118,7 +112,10 @@ export default {
 
         const conf = await cm.read(true).catch(() => ({}));
         if (conf.enabled !== true) {
-          return HttpResponse.forbidden(res, 'xianyu_webhook 未启用');
+          return HttpResponse.forbidden(
+            res,
+            `xianyu_webhook 未启用（请编辑 ${ensured.targetPath}，设置 enabled: true）`,
+          );
         }
 
         const secret = String(conf.secret ?? '').trim();

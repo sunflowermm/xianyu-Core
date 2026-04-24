@@ -18,7 +18,7 @@
 - **职责**：
   - 提供 **Webhook 接收接口**：`POST /webhook/xianyu`
   - 通过 **commonconfig/xianyu_webhook.js** 提供配置 Schema（启用开关、密钥、推送群/私聊数组、bot_id）
-  - 首次启动时由 **HTTP 模块的 init()** 自动确保配置文件存在（从本 Core 内置模板复制）
+  - 请求到达时自动确保配置文件存在（从本 Core 内置模板复制到 `data/server_bots/{port}/xianyu_webhook.yaml`）
   - 将收到的 webhook 内容转为文本后，调用 `Bot.sendGroupMsg / Bot.sendFriendMsg` 转发（底层由 `system-Core/tasker/OneBotv11.js` 实现发送）
 
 ---
@@ -46,7 +46,7 @@ xianyu-Core/
 - **实际生效**：`data/server_bots/{port}/xianyu_webhook.yaml`
   - 由 `commonconfig/xianyu_webhook.js` 的 `filePath` 指定
   - 可通过 Web 控制台（commonconfig）编辑
-- **首次运行**：若文件不存在，`http/webhook.js` 的 `init()` 会从本 Core 的模板复制生成：
+- **首次运行**：若文件不存在，首次请求到达时会从本 Core 的模板复制生成：
   - `core/xianyu-Core/default_config/xianyu_webhook.yaml`
 
 ### 启用开关
@@ -72,13 +72,17 @@ xianyu-Core/
 
 - `POST /webhook/xianyu`
 
-### 鉴权
+### 鉴权（xianyu-Core 自己负责）
 
 - 如果 `secret` 非空：需要满足其一
   - `Header: X-Xianyu-Secret: <secret>`
   - 或 `Query: ?secret=<secret>`
 
-> 注意：若你的 `server.yaml` 启用了 APIKey 鉴权且未对白名单放行该路径，则还需把 `/webhook/xianyu` 加到 `data/server_bots/{port}/server.yaml` 的 `auth.whitelist`（这是服务端统一安全策略，不属于 xianyu-Core 逻辑）。
+### 常见问题
+
+- **Webhook 返回 403**：
+  - **xianyu_webhook 未启用**：把 `data/server_bots/{port}/xianyu_webhook.yaml` 里的 `enabled` 改成 `true`
+  - **密钥不匹配**：确认请求携带的 `X-Xianyu-Secret` / `?secret=` 与配置里的 `secret` 一致
 
 ### 请求示例
 
@@ -90,15 +94,23 @@ curl -X POST "http://127.0.0.1:端口/webhook/xianyu?secret=你的secret" \
 
 ---
 
-## 🧱 与 XRK-AGT 框架的关系
+## 🧩 依赖与边界（该参考 system-Core 的地方）
 
-本 Core 仅复用 XRK-AGT 已有能力，不修改基础设施层：
+- **依赖 system-Core**：
+  - 本 Core **不实现发送协议**，只调用 `Bot.sendGroupMsg / Bot.sendFriendMsg`。
+  - 这要求你已经在运行环境里启用了可用的发送通道（例如 `system-Core/tasker/OneBotv11.js` 已连接），否则会在发送阶段失败。
 
-| 能力 | 说明 |
-|------|------|
-| **commonconfig 加载** | ConfigLoader 扫描 `core/*/commonconfig/*.js`；`xianyu_webhook.js` → key `xianyu_webhook` |
-| **HTTP 加载** | HttpApiLoader 扫描 `core/*/http/*.js` 并挂载路由；本 Core 提供 `/webhook/xianyu` |
-| **消息发送** | 通过 `Bot.sendGroupMsg / Bot.sendFriendMsg` 统一发送；OneBotv11 由 `system-Core/tasker/OneBotv11.js` 提供 |
+- **依赖配置系统**：
+  - 本 Core 的配置通过 `commonconfig/xianyu_webhook.js` 提供，并在运行时通过 `global.ConfigManager.get('xianyu_webhook').read()` 读取。
+  - 配置文件缺失时，本 Core 会从 `default_config/xianyu_webhook.yaml` 复制生成到 `data/server_bots/{port}/xianyu_webhook.yaml`。
+
+---
+
+## 🧱 自己写业务 Core 需要注意的地方
+
+- **不要假设全局会替你鉴权**：本项目只有需要鉴权的模块（如 system-Core）才会在自身 handler 内做鉴权。
+  - 如果你的业务 Core 也需要鉴权，请在自己的路由里实现（推荐复用 `HttpResponse`，必要时可调用 `Bot.checkApiAuthorization(req)`）。
+- **配置读取优先走 commonconfig**：业务 Core 新增配置，应该用 `commonconfig/*.js` + `global.ConfigManager.get(name)`，而不是往 `cfg`（底层固定配置集合）里硬塞字段。
 
 ---
 
