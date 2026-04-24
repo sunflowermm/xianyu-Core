@@ -5,7 +5,7 @@
 **XRK-AGT 闲鱼 Webhook 通道：提供一个可对外开放的 Webhook URL，将收到的 payload 转发到指定群聊/私聊（通过 system-Core 的 OneBotv11 通道发消息）。**
 
 <p>
-  <img src="./咸鱼-copy.png" alt="xianyu webhook" width="520" />
+  <img src="./咸鱼-copy.png" alt="xianyu webhook" width="360" />
 </p>
 
 </div>
