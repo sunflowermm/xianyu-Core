@@ -63,6 +63,17 @@ function buildTextFromPayload(payload) {
   }
 }
 
+function shouldSuppressTokenRefreshAlert(msg) {
+  const text = String(msg ?? '').trim();
+  if (!text) return false;
+  if (!text.includes('Token刷新异常')) return false;
+
+  return (
+    text.includes('未配置用户名或密码，无法自动刷新Cookie') ||
+    text.includes('Cookie验证失败且密码登录刷新也失败')
+  );
+}
+
 async function dispatchToTargets(Bot, { botId, groups, privates, msg }) {
   const jobs = [];
 
@@ -136,6 +147,13 @@ export default {
         const msg = buildTextFromPayload(payload);
         if (!msg) {
           return HttpResponse.validationError(res, '空 payload：无法生成推送内容');
+        }
+        if (shouldSuppressTokenRefreshAlert(msg)) {
+          return HttpResponse.success(res, {
+            ok: true,
+            suppressed: true,
+            reason: '已忽略冗余 Token 刷新异常告警',
+          });
         }
 
         const botId = String(conf.bot_id ?? '').trim() || null;
