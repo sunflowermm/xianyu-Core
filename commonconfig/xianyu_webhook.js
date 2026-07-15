@@ -13,8 +13,8 @@ export default class XianyuWebhookConfig extends ConfigBase {
       name: 'xianyu_webhook',
       displayName: '闲鱼 Webhook 配置（xianyu-Core）',
       description: '接收外部 webhook 并转发到指定群聊/私聊（OneBotv11）',
-      filePath: (cfg) => {
-        const port = cfg?.port ?? cfg?._port;
+      filePath: (runtimeConfig) => {
+        const port = runtimeConfig?.port ?? runtimeConfig?._port;
         if (!port) throw new Error('XianyuWebhookConfig: 未提供端口，无法解析路径');
         return `data/server_bots/${port}/xianyu_webhook.yaml`;
       },

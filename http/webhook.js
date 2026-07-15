@@ -1,4 +1,4 @@
-import cfg from '#infrastructure/config/config.js';
+import runtimeConfig from '#infrastructure/config/config.js';
 import { HttpResponse } from '#utils/http-utils.js';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -74,12 +74,12 @@ function shouldSuppressTokenRefreshAlert(msg) {
   );
 }
 
-async function dispatchToTargets(Bot, { botId, groups, privates, msg }) {
+async function dispatchToTargets(AgentRuntime, { botId, groups, privates, msg }) {
   const jobs = [];
 
   for (const group_id of groups) {
     jobs.push(
-      Bot.sendGroupMsg(botId || null, group_id, msg).then(
+      AgentRuntime.sendGroupMsg(botId || null, group_id, msg).then(
         r => ({ ok: true, type: 'group', target: group_id, message_id: r?.message_id }),
         e => ({ ok: false, type: 'group', target: group_id, error: e?.message || String(e) }),
       ),
@@ -88,7 +88,7 @@ async function dispatchToTargets(Bot, { botId, groups, privates, msg }) {
 
   for (const user_id of privates) {
     jobs.push(
-      Bot.sendFriendMsg(botId || null, user_id, msg).then(
+      AgentRuntime.sendFriendMsg(botId || null, user_id, msg).then(
         r => ({ ok: true, type: 'private', target: user_id, message_id: r?.message_id }),
         e => ({ ok: false, type: 'private', target: user_id, error: e?.message || String(e) }),
       ),
@@ -106,8 +106,8 @@ export default {
     {
       method: 'POST',
       path: '/webhook/xianyu',
-      handler: HttpResponse.asyncHandler(async (req, res, Bot) => {
-        const port = cfg?.port ?? cfg?._port;
+      handler: HttpResponse.asyncHandler(async (req, res, AgentRuntime) => {
+        const port = runtimeConfig?.port ?? runtimeConfig?._port;
         if (!port) return HttpResponse.error(res, new Error('端口未初始化，无法解析配置路径'), 503, 'xianyu.webhook');
 
         // 确保配置文件存在（不依赖根 default_config）
@@ -116,9 +116,9 @@ export default {
           return HttpResponse.error(res, new Error(`配置文件生成失败: ${ensured.targetPath}`), 503, 'xianyu.webhook');
         }
 
-        const cm = global.ConfigManager?.get?.('xianyu_webhook');
+        const cm = global.CommonConfigRegistry?.get?.('xianyu_webhook');
         if (!cm || typeof cm.read !== 'function') {
-          return HttpResponse.error(res, new Error('ConfigManager 未初始化或 xianyu_webhook 未加载'), 503, 'xianyu.webhook');
+          return HttpResponse.error(res, new Error('CommonConfigRegistry 未初始化或 xianyu_webhook 未加载'), 503, 'xianyu.webhook');
         }
 
         const conf = await cm.read(true).catch(() => ({}));
@@ -157,7 +157,7 @@ export default {
         }
 
         const botId = String(conf.bot_id ?? '').trim() || null;
-        const results = await dispatchToTargets(Bot, { botId, groups, privates, msg });
+        const results = await dispatchToTargets(AgentRuntime, { botId, groups, privates, msg });
         const okCount = results.filter(r => r.ok).length;
 
         return HttpResponse.success(res, {
